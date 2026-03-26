@@ -8,52 +8,63 @@ st.set_page_config(page_title="Smart Drilling Dashboard", layout="wide")
 st.title("⛏ Smart Drilling IoT Dashboard")
 st.write("Real-time monitoring of drilling parameters with predictive alerts.")
 
-# Empty dataframe
-data = pd.DataFrame(columns=["Time", "Depth", "RPM", "Torque"])
+# Initialize session state
+if "data" not in st.session_state:
+    st.session_state.data = []
+    st.session_state.depth = 0
+    st.session_state.high_torque_count = 0
 
-# Placeholders
+# Layout
 chart_col, alert_col = st.columns([3, 1])
-line_placeholder = chart_col.empty()
-metrics_placeholder = alert_col.empty()
 
-depth = 0
-high_torque_count = 0
+# Generate new data point
+t = len(st.session_state.data) + 1
 
-# Simulate streaming
-for t in range(1, 61):  # 60 readings
-    depth += np.random.randint(1, 5)
-    rpm = np.random.randint(800, 1200)
-    torque = np.random.randint(50, 200)
+st.session_state.depth += np.random.randint(1, 5)
+rpm = np.random.randint(800, 1200)
+torque = np.random.randint(50, 200)
 
-    new_row = {"Time": t, "Depth": depth, "RPM": rpm, "Torque": torque}
-    data = pd.concat([data, pd.DataFrame([new_row])], ignore_index=True)
+new_row = {
+    "Time": t,
+    "Depth": st.session_state.depth,
+    "RPM": rpm,
+    "Torque": torque
+}
 
-    # Track high torque for predictive maintenance
+st.session_state.data.append(new_row)
+
+# Convert to DataFrame
+data = pd.DataFrame(st.session_state.data)
+
+
+if torque > 150:
+    st.session_state.high_torque_count += 1
+else:
+    st.session_state.high_torque_count = 0
+
+#  Chart
+with chart_col:
+    st.subheader("📊 Live Drilling Data")
+    st.line_chart(data.set_index("Time")[["Depth", "RPM", "Torque"]])
+
+# ⚙ Metrics + Alerts
+with alert_col:
+    st.subheader("⚙ Current Status")
+    st.metric("Depth (m)", st.session_state.depth)
+    st.metric("RPM", rpm)
+    st.metric("Torque (Nm)", torque)
+
     if torque > 150:
-        high_torque_count += 1
-    else:
-        high_torque_count = 0
+        st.error(f"⚠ High Torque Alert: {torque} Nm")
 
-    # Update charts
-    with line_placeholder.container():
-        st.subheader("📊 Live Drilling Data")
-        st.line_chart(data.set_index("Time")[["Depth", "RPM", "Torque"]])
+    if st.session_state.high_torque_count >= 3:
+        st.warning("🔮 Predictive Alert: Possible Drill Failure Soon!")
 
-    # Update metrics + alerts
-    with metrics_placeholder.container():
-        st.subheader("⚙ Current Status")
-        st.metric("Depth (m)", depth)
-        st.metric("RPM", rpm)
-        st.metric("Torque (Nm)", torque)
 
-        if torque > 150:
-            st.error(f"⚠ High Torque Alert: {torque} Nm")
-        if high_torque_count >= 3:
-            st.warning("🔮 Predictive Alert: Possible Drill Failure Soon!")
+time.sleep(0.5)
+st.rerun()
 
-    time.sleep(0.5)
-
-# After simulation: Allow export
+# Export
 st.subheader("📂 Export Data")
 csv = data.to_csv(index=False).encode("utf-8")
 st.download_button("Download CSV", csv, "drilling_data.csv", "text/csv")
